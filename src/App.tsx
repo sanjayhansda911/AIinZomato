@@ -12,6 +12,7 @@ import { VoiceSearchModal } from './components/VoiceSearchModal';
 import { AISearchBanner } from './components/AISearchBanner';
 import { CartConflictModal } from './components/CartConflictModal';
 import { InstallAppBanner } from './components/InstallAppBanner';
+import { FoodieFriendModal } from './components/FoodieFriendModal';
 import { LOCALITIES, RESTAURANTS, COUPONS } from './data/hyderabadData';
 import { Locality, Restaurant, MenuItem, CartItem, Coupon, Order, AISearchResponse } from './types';
 import { getAdjustedRestaurantClient, clientNlpSearch, createClientOrder } from './utils/localApiFallback';
@@ -43,6 +44,7 @@ export const App: React.FC = () => {
 
   // AI Voice & Natural Language Search state
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [isFoodieFriendOpen, setIsFoodieFriendOpen] = useState<boolean>(false);
   const [aiSearchResult, setAiSearchResult] = useState<AISearchResponse | null>(null);
   const [isAiSearching, setIsAiSearching] = useState<boolean>(false);
 
@@ -337,6 +339,7 @@ export const App: React.FC = () => {
         onToggleVegOnly={() => setIsVegOnly(!isVegOnly)}
         onOpenVoiceSearch={() => setIsVoiceModalOpen(true)}
         onSubmitAISearch={handlePerformAISearch}
+        onOpenFoodieFriend={() => setIsFoodieFriendOpen(true)}
       />
 
       {/* Main Tab Views */}
@@ -365,6 +368,7 @@ export const App: React.FC = () => {
               onFilterChange={f => setActiveFilter(f)}
               selectedCuisine={selectedCuisine}
               onSelectCuisine={c => setSelectedCuisine(c)}
+              onOpenFoodieFriend={() => setIsFoodieFriendOpen(true)}
             />
           </div>
         )}
@@ -432,6 +436,20 @@ export const App: React.FC = () => {
         isOpen={isVoiceModalOpen}
         onClose={() => setIsVoiceModalOpen(false)}
         onSelectQuery={handlePerformAISearch}
+      />
+
+      {/* Foodie Friend "Can't Decide?" AI Modal */}
+      <FoodieFriendModal
+        isOpen={isFoodieFriendOpen}
+        onClose={() => setIsFoodieFriendOpen(false)}
+        selectedLocality={selectedLocality}
+        restaurants={restaurants}
+        cartItems={cartItems}
+        onAddToCart={handleAddToCart}
+        onOpenCart={() => {
+          setIsFoodieFriendOpen(false);
+          setActiveTab('cart');
+        }}
       />
 
       {/* Bottom Navigation Bar */}

@@ -12,6 +12,7 @@ interface HeaderProps {
   onToggleVegOnly: () => void;
   onOpenVoiceSearch: () => void;
   onSubmitAISearch: (query: string) => void;
+  onOpenFoodieFriend?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleVegOnly,
   onOpenVoiceSearch,
   onSubmitAISearch,
+  onOpenFoodieFriend,
 }) => {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
@@ -57,8 +59,18 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </button>
 
-        {/* Zomato Gold Badge / Profile */}
+        {/* Zomato Gold Badge & Foodie Dost Trigger */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
+          {onOpenFoodieFriend && (
+            <button
+              onClick={onOpenFoodieFriend}
+              className="px-2.5 py-1 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 text-white text-[11px] font-black flex items-center gap-1 shadow-xs hover:from-rose-600 hover:to-amber-600 active:scale-95 transition-all"
+              title="Can't decide what to eat? Ask Gemini Foodie Dost"
+            >
+              <span>🤖</span>
+              <span>Dost AI</span>
+            </button>
+          )}
           <div className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 text-[10px] font-extrabold flex items-center gap-1 shadow-sm">
             <Sparkles className="w-3 h-3 text-amber-600 fill-amber-500" />
             <span>GOLD</span>
@@ -178,6 +190,14 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Quick Natural Language AI Prompts Pill Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1.5">
+          {onOpenFoodieFriend && (
+            <button
+              onClick={onOpenFoodieFriend}
+              className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-gradient-to-r from-rose-600 to-amber-600 text-white hover:opacity-90 whitespace-nowrap shadow-xs transition-all flex items-center gap-1 flex-shrink-0"
+            >
+              <span>🤖 Can&apos;t Decide? Ask Dost</span>
+            </button>
+          )}
           <span className="text-[10px] font-extrabold text-rose-600 flex items-center gap-0.5 flex-shrink-0">
             <Sparkles className="w-2.5 h-2.5 fill-rose-600" />
             AI:

@@ -10,6 +10,7 @@ interface DeliveryTabProps {
   onFilterChange: (filter: string) => void;
   selectedCuisine: string | null;
   onSelectCuisine: (cuisine: string | null) => void;
+  onOpenFoodieFriend?: () => void;
 }
 
 export const DeliveryTab: React.FC<DeliveryTabProps> = ({
@@ -20,6 +21,7 @@ export const DeliveryTab: React.FC<DeliveryTabProps> = ({
   onFilterChange,
   selectedCuisine,
   onSelectCuisine,
+  onOpenFoodieFriend,
 }) => {
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
@@ -69,6 +71,41 @@ export const DeliveryTab: React.FC<DeliveryTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Foodie Friend "Can't Decide?" Spotlight Card */}
+      {onOpenFoodieFriend && (
+        <div className="px-4 pt-1 pb-2">
+          <div
+            onClick={onOpenFoodieFriend}
+            className="cursor-pointer relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 via-rose-500 to-rose-600 p-3.5 text-white shadow-md hover:shadow-lg transition-all group active:scale-[0.99]"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl shadow-inner border border-white/30 group-hover:scale-110 transition-transform">
+                  🤖
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-white/20 text-white tracking-wider">
+                      Gemini Foodie Dost
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-200">✨ Smart Weather Pairing</span>
+                  </div>
+                  <h3 className="text-sm font-black text-white mt-0.5 leading-snug">
+                    Can&apos;t Decide What to Eat?
+                  </h3>
+                  <p className="text-[11px] text-rose-100 font-medium line-clamp-1">
+                    Rainy chai & bajji, midnight biryani, or cool treats — your dost picks for you!
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-white text-rose-600 flex items-center justify-center font-black text-xs shadow-md group-hover:translate-x-1 transition-transform flex-shrink-0 ml-2">
+                ➔
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Categories Horizontal Carousel */}
       <div className="mt-1">

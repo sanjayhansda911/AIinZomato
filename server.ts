@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import { LOCALITIES, RESTAURANTS, COUPONS } from './src/data/hyderabadData';
-import { Order, CartItem, AIParsedQuery, AIMatchedDish, AISearchResponse } from './src/types';
+import { Order, CartItem, AIParsedQuery, AIMatchedDish, AISearchResponse, FoodieFriendDish, FoodieFriendResponse } from './src/types';
 
 // Auto-load .env in Node 20.12+ if present
 if (typeof (process as any).loadEnvFile === 'function') {
@@ -722,6 +722,348 @@ User Query: "${query}"`;
 
   res.json(responseData);
 });
+
+// ================= AI FOODIE FRIEND (CAN'T DECIDE) =================
+
+function localFoodieFriendParse(params: {
+  localityId?: string;
+  weather?: string;
+  timeOfDay?: string;
+  userHistory?: { pastOrders?: string[]; favoriteCuisines?: string[] };
+}): FoodieFriendResponse {
+  const { localityId = 'jubilee-hills', weather = 'rainy', timeOfDay, userHistory } = params;
+
+  // Resolve time of day if not given
+  let resolvedTime = timeOfDay;
+  if (!resolvedTime || resolvedTime === 'auto') {
+    const currentHour = new Date().getHours();
+    if (currentHour >= 6 && currentHour < 11) resolvedTime = 'morning';
+    else if (currentHour >= 11 && currentHour < 16) resolvedTime = 'lunch';
+    else if (currentHour >= 16 && currentHour < 19) resolvedTime = 'snack';
+    else if (currentHour >= 19 && currentHour < 23) resolvedTime = 'dinner';
+    else resolvedTime = 'late_night';
+  }
+
+  const w = (weather || 'rainy').toLowerCase();
+
+  let headline = '';
+  let weatherCondition = '';
+  let timeContext = '';
+  let friendAdvice = '';
+  let vibeTags: string[] = [];
+  let dishMap: { id: string; reason: string }[] = [];
+
+  if (w.includes('rain') || w.includes('drizzle') || w.includes('monsoon') || w.includes('storm')) {
+    weatherCondition = '🌧️ Monsoon Drizzle / Rainy';
+    timeContext = resolvedTime === 'lunch' || resolvedTime === 'dinner' ? 'Rainy Meal Time' : 'Rainy Chai & Snacks';
+    headline = '🌧️ Hyderabad Monsoon Special: Chai & Mirchi Bajji Weather!';
+    friendAdvice =
+      "Arrey dost! Look at that rain outside! In Hyderabad, sitting idle during rains is simply unacceptable. Nothing beats piping hot Irani Chai, crunchy stuffed Mirchi Bajji, or a steaming Dum Biryani to warm you up. Trust your dost!";
+    vibeTags = ['🌧️ Monsoon Comfort', '☕ Kadak Chai', '🌶️ Hyderabadi Bajji', '🍛 Steaming Biryani'];
+    dishMap = [
+      {
+        id: 'niloufer-mirchi-bajji',
+        reason: 'Desi-battered Bhavnagri chillies with roasted peanut masala — an absolute rainy day legend!',
+      },
+      {
+        id: 'niloufer-special-mawa-chai',
+        reason: 'Rich, creamy slow-simmered Irani chai in a cup that warms you right to the soul.',
+      },
+      {
+        id: 'chutneys-mirchi-bajji',
+        reason: 'Crispy golden Andhra-style bajji served with Chutneys famous 7 dips.',
+      },
+      {
+        id: 'niloufer-keema-samosas',
+        reason: 'Patti samosas packed with spiced minced mutton, fried blistered and crunchy.',
+      },
+      {
+        id: 'bawarchi-special-mutton',
+        reason: 'Spicy, aromatic RTC X Roads dum biryani to beat the cold drizzle.',
+      },
+      {
+        id: 'shahghouse-special-chicken-biryani',
+        reason: 'Fiery and deeply spiced chicken biryani that satisfies any monsoon craving.',
+      },
+    ];
+  } else if (w.includes('warm') || w.includes('sun') || w.includes('hot')) {
+    weatherCondition = '☀️ Warm Afternoon / Sunny';
+    timeContext = 'Cool & Light Dining';
+    headline = '☀️ Warm Day: Cool Down Hyderabad Style!';
+    friendAdvice =
+      "Ustaad, the sun is shining hot today! Don't step out in this heat. Let's cool down with soothing temple curd rice, refreshing filter coffee, or a chilled artisan dessert from Concu.";
+    vibeTags = ['☀️ Beat The Heat', '🥭 Cool Refreshers', '🥞 Light Tiffins', '☕ Filter Coffee'];
+    dishMap = [
+      {
+        id: 'chutneys-curd-rice',
+        reason: 'Temple-style tempered curd rice with pomegranate and mustard seeds — instant coolness!',
+      },
+      {
+        id: 'concu-tiramisu',
+        reason: 'Chilled, feather-light mascarpone cream and espresso dessert from Hyderabad’s finest patisserie.',
+      },
+      {
+        id: 'chutneys-filter-coffee',
+        reason: 'Traditional frothed brass-davarah filter coffee to lift your spirits.',
+      },
+      {
+        id: 'chutneys-ghee-sponge-dosa',
+        reason: 'Fluffy Babai hotel sponge dosa roasted in cow ghee with 7 refreshing chutneys.',
+      },
+      {
+        id: 'niloufer-golden-chai-flask',
+        reason: 'Rich golden chai flask to share with friends or colleagues in the AC lounge.',
+      },
+    ];
+  } else if (w.includes('night') || resolvedTime === 'late_night') {
+    weatherCondition = '🌙 Late Night / Midnight';
+    timeContext = 'Midnight Cravings';
+    headline = "🌙 Midnight Cravings: Hyderabad's Late Night Feast!";
+    friendAdvice =
+      "Midnight hunger hitting hard, dost? You know Hyderabad never sleeps! Whether it's a late-night single Biryani from Shah Ghouse, melt-in-mouth Mutton Luqmi, or warm Double Ka Meetha, your dost has got you sorted.";
+    vibeTags = ['🌙 Midnight Munchies', '🍛 Midnight Biryani', '🍖 Nizami Luqmi', '🍯 Royal Meetha'];
+    dishMap = [
+      {
+        id: 'shahghouse-special-chicken-biryani',
+        reason: 'The undisputed late-night champion biryani of Tolichowki & Charminar.',
+      },
+      {
+        id: 'paradise-single-chicken-biryani',
+        reason: 'Perfect single portion of authentic dum biryani for your midnight cravings.',
+      },
+      {
+        id: 'niloufer-mutton-luqmi',
+        reason: 'Historic square flaky pastry parcels stuffed with spicy minced lamb.',
+      },
+      {
+        id: 'pista-double-ka-meetha',
+        reason: 'Golden fried bread soaked in saffron-infused milk and roasted dry fruits.',
+      },
+      {
+        id: 'bawarchi-single-chicken-biryani',
+        reason: 'RTC X Roads legendary single biryani — pocket-friendly midnight bliss.',
+      },
+    ];
+  } else {
+    // Breezy / Pleasant / Evening
+    weatherCondition = '🍃 Pleasant Evening / Breezy';
+    timeContext = '4 PM Chai & Nizami Bites';
+    headline = '🍃 Pleasant Hyderabad Evening: 4 PM Chai & Nizami Bites!';
+    friendAdvice =
+      "Bhai, look at the weather — it is so pleasant! Perfect time to take a break from work. Grab a flask of Niloufer's golden chai with Osmania biscuits, or treat yourself to fiery Ghee Podi Idlis.";
+    vibeTags = ['🍃 4 PM Chai Time', '🍪 Osmania Biscuits', '☕ Niloufer Chai', '🧈 Bun Maska'];
+    dishMap = [
+      {
+        id: 'niloufer-special-mawa-chai',
+        reason: "Hyderabad's most celebrated chai to recharge your entire evening.",
+      },
+      {
+        id: 'niloufer-osmania-biscuits',
+        reason: 'Melt-in-mouth sweet-and-salty Osmania biscuits dipped straight into hot chai.',
+      },
+      {
+        id: 'niloufer-bun-maska-amul',
+        reason: 'Warm soft bakery bun loaded with Amul butter — pure comfort food.',
+      },
+      {
+        id: 'chutneys-ghee-podi-idli',
+        reason: 'Steamed mini idlis tossed in fiery gunpowder karam podi and pure cow ghee.',
+      },
+      {
+        id: 'paradise-mutton-galouti-kebab',
+        reason: 'Royal melt-in-mouth Lucknowi & Nizami mutton kebabs slow-grilled on dum.',
+      },
+    ];
+  }
+
+  if (userHistory?.pastOrders && userHistory.pastOrders.length > 0) {
+    const lastDish = userHistory.pastOrders[0];
+    friendAdvice += ` (Also noticed you loved ${lastDish} recently — I made sure these recommendations match your taste!)`;
+  }
+
+  const suggestedDishes: FoodieFriendDish[] = [];
+  for (const itemMap of dishMap) {
+    for (const rest of RESTAURANTS) {
+      let foundDish = null;
+      for (const cat of rest.menuCategories) {
+        const d = cat.items.find(it => it.id === itemMap.id);
+        if (d) {
+          foundDish = d;
+          break;
+        }
+      }
+      if (foundDish) {
+        const adjustedRest = getAdjustedRestaurant(rest, localityId);
+        suggestedDishes.push({
+          dish: foundDish,
+          restaurantId: rest.id,
+          restaurantName: rest.name,
+          localityName: rest.localityName,
+          deliveryTimeMinutes: adjustedRest.deliveryTimeMinutes,
+          price: foundDish.price,
+          friendReason: itemMap.reason,
+        });
+        break;
+      }
+    }
+  }
+
+  return {
+    success: true,
+    source: 'local-foodie-friend-fallback',
+    headline,
+    weatherCondition,
+    timeContext,
+    friendAdvice,
+    vibeTags,
+    suggestedDishes,
+  };
+}
+
+// POST /ai/friend-suggest endpoint
+apiRouter.post('/ai/friend-suggest', async (req, res) => {
+  const { localityId = 'jubilee-hills', weather = 'rainy', timeOfDay = 'auto', userHistory } = req.body;
+
+  const targetLocality = LOCALITIES.find(l => l.id === localityId) || LOCALITIES[0];
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (apiKey) {
+    try {
+      const ai = new GoogleGenAI({ apiKey });
+
+      // Compact list of dishes across restaurants for Gemini to choose from
+      const candidateList = RESTAURANTS.slice(0, 6).flatMap(r =>
+        r.menuCategories.flatMap(c =>
+          c.items.slice(0, 5).map(it => ({
+            id: it.id,
+            name: it.name,
+            price: it.price,
+            isVeg: it.isVeg,
+            restaurant: r.name,
+          }))
+        )
+      );
+
+      const prompt = `You are the ultimate "Hyderabadi Foodie Dost" (a warm, witty, food-loving local friend in Hyderabad on Zomato).
+A user cannot decide what to eat right now. As their best Hyderabadi friend ("dost"), suggest what they should eat at this exact moment!
+
+Context:
+- Weather: "${weather}" (e.g. if rainy, people in Hyderabad crave piping hot Irani Chai & crispy Mirchi Bajji / Keema Samosas / hot Dum Biryani; if sunny, cooling curd rice, badam milk, iced treats; if late night, midnight biryani, luqmi, double ka meetha)
+- Time of Day: "${timeOfDay}"
+- Customer Locality: "${targetLocality.name}"
+- User's Past Orders: ${JSON.stringify(userHistory?.pastOrders || ['Chicken Dum Biryani'])}
+
+Available Curated Menu Items in Hyderabad Database:
+${JSON.stringify(candidateList, null, 1)}
+
+Persona & Tone:
+- Talk like an authentic, caring Hyderabadi friend ("Arrey dost", "Ustaad", "Dekho...", "Khao dil khol ke", "Trust your dost").
+- Pick 4-6 matching dishes from the provided list that suit the weather and time.
+- For each picked dish, write a witty, warm 1-sentence friend reason explaining why they MUST have it right now.
+- Return ONLY valid JSON with this schema:
+{
+  "headline": "string (e.g. 🌧️ Hyderabad Monsoon Special: Chai & Mirchi Bajji Weather!)",
+  "weatherCondition": "string (e.g. 🌧️ Monsoon Drizzle)",
+  "timeContext": "string (e.g. Evening Chai & Snacks)",
+  "friendAdvice": "string (2-3 warm, persuasive buddy sentences)",
+  "vibeTags": ["tag1", "tag2", "tag3"],
+  "recommendations": [
+    {
+      "dishId": "string (must match an id from the provided items)",
+      "friendReason": "string (1 personal buddy reason)"
+    }
+  ]
+}`;
+
+      let responseText: string | null = null;
+      let modelUsed: 'gemini-3.8-flash' | 'local-foodie-friend-fallback' = 'gemini-3.8-flash';
+
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        if (response.text) {
+          responseText = response.text;
+        }
+      } catch (err38) {
+        console.warn('gemini-3.8-flash busy for friend-suggest, trying gemini-3.6-flash:', err38);
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          });
+          if (response.text) {
+            responseText = response.text;
+          }
+        } catch (err36) {
+          console.warn('Gemini 3.6 Flash also failed for friend-suggest, falling back to local dost:', err36);
+        }
+      }
+
+      if (responseText) {
+        const parsed = JSON.parse(responseText);
+        const rawRecs: { dishId: string; friendReason: string }[] = Array.isArray(parsed.recommendations)
+          ? parsed.recommendations
+          : [];
+
+        const suggestedDishes: FoodieFriendDish[] = [];
+        for (const rec of rawRecs) {
+          for (const rest of RESTAURANTS) {
+            let found = null;
+            for (const cat of rest.menuCategories) {
+              const d = cat.items.find(it => it.id === rec.dishId);
+              if (d) {
+                found = d;
+                break;
+              }
+            }
+            if (found) {
+              const adjustedRest = getAdjustedRestaurant(rest, localityId);
+              suggestedDishes.push({
+                dish: found,
+                restaurantId: rest.id,
+                restaurantName: rest.name,
+                localityName: rest.localityName,
+                deliveryTimeMinutes: adjustedRest.deliveryTimeMinutes,
+                price: found.price,
+                friendReason: rec.friendReason || 'Authentic Hyderabadi delicacy recommended by your dost!',
+              });
+              break;
+            }
+          }
+        }
+
+        if (suggestedDishes.length >= 2) {
+          const responseData: FoodieFriendResponse = {
+            success: true,
+            source: modelUsed,
+            headline: parsed.headline || '🤖 Your Foodie Dost Suggests:',
+            weatherCondition: parsed.weatherCondition || (weather === 'rainy' ? '🌧️ Monsoon Drizzle' : '🍃 Pleasant Vibe'),
+            timeContext: parsed.timeContext || 'Special Recommendation',
+            friendAdvice: parsed.friendAdvice || 'Dekho dost, life is too short to stay hungry. Enjoy these delicious bites!',
+            vibeTags: Array.isArray(parsed.vibeTags) ? parsed.vibeTags.slice(0, 4) : ['🍛 Hyderabadi Cravings'],
+            suggestedDishes,
+          };
+          return res.json(responseData);
+        }
+      }
+    } catch (err) {
+      console.warn('Gemini friend-suggest failed, using local parser:', err);
+    }
+  }
+
+  // Fallback to local foodie friend
+  const fallbackData = localFoodieFriendParse({ localityId, weather, timeOfDay, userHistory });
+  return res.json(fallbackData);
+});
+
 
 // Health check endpoint
 apiRouter.get('/health', (req, res) => {

@@ -131,3 +131,25 @@ export interface AISearchResponse {
   matchedDishes: AIMatchedDish[];
 }
 
+export interface FoodieFriendDish {
+  dish: MenuItem;
+  restaurantId: string;
+  restaurantName: string;
+  localityName: string;
+  deliveryTimeMinutes: number;
+  price: number;
+  friendReason: string;
+}
+
+export interface FoodieFriendResponse {
+  success: boolean;
+  source: 'gemini-3.8-flash' | 'local-foodie-friend-fallback';
+  headline: string;
+  weatherCondition: string;
+  timeContext: string;
+  friendAdvice: string;
+  vibeTags: string[];
+  suggestedDishes: FoodieFriendDish[];
+}
+
+

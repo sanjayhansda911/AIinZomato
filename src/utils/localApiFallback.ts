@@ -1,5 +1,5 @@
 import { LOCALITIES, RESTAURANTS, COUPONS } from '../data/hyderabadData';
-import { Order, CartItem, AIParsedQuery, AIMatchedDish, AISearchResponse, Restaurant } from '../types';
+import { Order, CartItem, AIParsedQuery, AIMatchedDish, AISearchResponse, Restaurant, FoodieFriendDish, FoodieFriendResponse } from '../types';
 
 export function getAdjustedRestaurantClient(restaurant: Restaurant, targetLocalityId?: string): Restaurant {
   if (!targetLocalityId) return restaurant;
@@ -368,3 +368,197 @@ export function createClientOrder(params: {
     },
   };
 }
+
+export function clientFoodieFriendSuggest(params: {
+  localityId?: string;
+  weather?: string;
+  timeOfDay?: string;
+  userHistory?: { pastOrders?: string[]; favoriteCuisines?: string[] };
+}): FoodieFriendResponse {
+  const { localityId = 'jubilee-hills', weather = 'rainy', timeOfDay, userHistory } = params;
+
+  let resolvedTime = timeOfDay;
+  if (!resolvedTime || resolvedTime === 'auto') {
+    const currentHour = new Date().getHours();
+    if (currentHour >= 6 && currentHour < 11) resolvedTime = 'morning';
+    else if (currentHour >= 11 && currentHour < 16) resolvedTime = 'lunch';
+    else if (currentHour >= 16 && currentHour < 19) resolvedTime = 'snack';
+    else if (currentHour >= 19 && currentHour < 23) resolvedTime = 'dinner';
+    else resolvedTime = 'late_night';
+  }
+
+  const w = (weather || 'rainy').toLowerCase();
+
+  let headline = '';
+  let weatherCondition = '';
+  let timeContext = '';
+  let friendAdvice = '';
+  let vibeTags: string[] = [];
+  let dishMap: { id: string; reason: string }[] = [];
+
+  if (w.includes('rain') || w.includes('drizzle') || w.includes('monsoon') || w.includes('storm')) {
+    weatherCondition = '🌧️ Monsoon Drizzle / Rainy';
+    timeContext = resolvedTime === 'lunch' || resolvedTime === 'dinner' ? 'Rainy Meal Time' : 'Rainy Chai & Snacks';
+    headline = '🌧️ Hyderabad Monsoon Special: Chai & Mirchi Bajji Weather!';
+    friendAdvice =
+      "Arrey dost! Look at that rain outside! In Hyderabad, sitting idle during rains is simply unacceptable. Nothing beats piping hot Irani Chai, crunchy stuffed Mirchi Bajji, or a steaming Dum Biryani to warm you up. Trust your dost!";
+    vibeTags = ['🌧️ Monsoon Comfort', '☕ Kadak Chai', '🌶️ Hyderabadi Bajji', '🍛 Steaming Biryani'];
+    dishMap = [
+      {
+        id: 'niloufer-mirchi-bajji',
+        reason: 'Desi-battered Bhavnagri chillies with roasted peanut masala — an absolute rainy day legend!',
+      },
+      {
+        id: 'niloufer-special-mawa-chai',
+        reason: 'Rich, creamy slow-simmered Irani chai in a cup that warms you right to the soul.',
+      },
+      {
+        id: 'chutneys-mirchi-bajji',
+        reason: 'Crispy golden Andhra-style bajji served with Chutneys famous 7 dips.',
+      },
+      {
+        id: 'niloufer-keema-samosas',
+        reason: 'Patti samosas packed with spiced minced mutton, fried blistered and crunchy.',
+      },
+      {
+        id: 'bawarchi-special-mutton',
+        reason: 'Spicy, aromatic RTC X Roads dum biryani to beat the cold drizzle.',
+      },
+      {
+        id: 'shahghouse-special-chicken-biryani',
+        reason: 'Fiery and deeply spiced chicken biryani that satisfies any monsoon craving.',
+      },
+    ];
+  } else if (w.includes('warm') || w.includes('sun') || w.includes('hot')) {
+    weatherCondition = '☀️ Warm Afternoon / Sunny';
+    timeContext = 'Cool & Light Dining';
+    headline = '☀️ Warm Day: Cool Down Hyderabad Style!';
+    friendAdvice =
+      "Ustaad, the sun is shining hot today! Don't step out in this heat. Let's cool down with soothing temple curd rice, refreshing filter coffee, or a chilled artisan dessert from Concu.";
+    vibeTags = ['☀️ Beat The Heat', '🥭 Cool Refreshers', '🥞 Light Tiffins', '☕ Filter Coffee'];
+    dishMap = [
+      {
+        id: 'chutneys-curd-rice',
+        reason: 'Temple-style tempered curd rice with pomegranate and mustard seeds — instant coolness!',
+      },
+      {
+        id: 'concu-tiramisu',
+        reason: 'Chilled, feather-light mascarpone cream and espresso dessert from Hyderabad’s finest patisserie.',
+      },
+      {
+        id: 'chutneys-filter-coffee',
+        reason: 'Traditional frothed brass-davarah filter coffee to lift your spirits.',
+      },
+      {
+        id: 'chutneys-ghee-sponge-dosa',
+        reason: 'Fluffy Babai hotel sponge dosa roasted in cow ghee with 7 refreshing chutneys.',
+      },
+      {
+        id: 'niloufer-golden-chai-flask',
+        reason: 'Rich golden chai flask to share with friends or colleagues in the AC lounge.',
+      },
+    ];
+  } else if (w.includes('night') || resolvedTime === 'late_night') {
+    weatherCondition = '🌙 Late Night / Midnight';
+    timeContext = 'Midnight Cravings';
+    headline = "🌙 Midnight Cravings: Hyderabad's Late Night Feast!";
+    friendAdvice =
+      "Midnight hunger hitting hard, dost? You know Hyderabad never sleeps! Whether it's a late-night single Biryani from Shah Ghouse, melt-in-mouth Mutton Luqmi, or warm Double Ka Meetha, your dost has got you sorted.";
+    vibeTags = ['🌙 Midnight Munchies', '🍛 Midnight Biryani', '🍖 Nizami Luqmi', '🍯 Royal Meetha'];
+    dishMap = [
+      {
+        id: 'shahghouse-special-chicken-biryani',
+        reason: 'The undisputed late-night champion biryani of Tolichowki & Charminar.',
+      },
+      {
+        id: 'paradise-single-chicken-biryani',
+        reason: 'Perfect single portion of authentic dum biryani for your midnight cravings.',
+      },
+      {
+        id: 'niloufer-mutton-luqmi',
+        reason: 'Historic square flaky pastry parcels stuffed with spicy minced lamb.',
+      },
+      {
+        id: 'pista-double-ka-meetha',
+        reason: 'Golden fried bread soaked in saffron-infused milk and roasted dry fruits.',
+      },
+      {
+        id: 'bawarchi-single-chicken-biryani',
+        reason: 'RTC X Roads legendary single biryani — pocket-friendly midnight bliss.',
+      },
+    ];
+  } else {
+    weatherCondition = '🍃 Pleasant Evening / Breezy';
+    timeContext = '4 PM Chai & Nizami Bites';
+    headline = '🍃 Pleasant Hyderabad Evening: 4 PM Chai & Nizami Bites!';
+    friendAdvice =
+      "Bhai, look at the weather — it is so pleasant! Perfect time to take a break from work. Grab a flask of Niloufer's golden chai with Osmania biscuits, or treat yourself to fiery Ghee Podi Idlis.";
+    vibeTags = ['🍃 4 PM Chai Time', '🍪 Osmania Biscuits', '☕ Niloufer Chai', '🧈 Bun Maska'];
+    dishMap = [
+      {
+        id: 'niloufer-special-mawa-chai',
+        reason: "Hyderabad's most celebrated chai to recharge your entire evening.",
+      },
+      {
+        id: 'niloufer-osmania-biscuits',
+        reason: 'Melt-in-mouth sweet-and-salty Osmania biscuits dipped straight into hot chai.',
+      },
+      {
+        id: 'niloufer-bun-maska-amul',
+        reason: 'Warm soft bakery bun loaded with Amul butter — pure comfort food.',
+      },
+      {
+        id: 'chutneys-ghee-podi-idli',
+        reason: 'Steamed mini idlis tossed in fiery gunpowder karam podi and pure cow ghee.',
+      },
+      {
+        id: 'paradise-mutton-galouti-kebab',
+        reason: 'Royal melt-in-mouth Lucknowi & Nizami mutton kebabs slow-grilled on dum.',
+      },
+    ];
+  }
+
+  if (userHistory?.pastOrders && userHistory.pastOrders.length > 0) {
+    const lastDish = userHistory.pastOrders[0];
+    friendAdvice += ` (Also noticed you loved ${lastDish} recently — I made sure these recommendations match your taste!)`;
+  }
+
+  const suggestedDishes: FoodieFriendDish[] = [];
+  for (const itemMap of dishMap) {
+    for (const rest of RESTAURANTS) {
+      let foundDish = null;
+      for (const cat of rest.menuCategories) {
+        const d = cat.items.find(it => it.id === itemMap.id);
+        if (d) {
+          foundDish = d;
+          break;
+        }
+      }
+      if (foundDish) {
+        const adjustedRest = getAdjustedRestaurantClient(rest, localityId);
+        suggestedDishes.push({
+          dish: foundDish,
+          restaurantId: rest.id,
+          restaurantName: rest.name,
+          localityName: rest.localityName,
+          deliveryTimeMinutes: adjustedRest.deliveryTimeMinutes,
+          price: foundDish.price,
+          friendReason: itemMap.reason,
+        });
+        break;
+      }
+    }
+  }
+
+  return {
+    success: true,
+    source: 'local-foodie-friend-fallback',
+    headline,
+    weatherCondition,
+    timeContext,
+    friendAdvice,
+    vibeTags,
+    suggestedDishes,
+  };
+}
+

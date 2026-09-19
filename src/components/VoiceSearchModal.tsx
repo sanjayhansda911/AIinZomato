@@ -20,6 +20,7 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({
   const fallbackChips = [
     'Want something light under 250 rupees',
     'Hot Irani chai with Osmania biscuits under 120',
+    'Rainy day chai and mirchi bajji',
     'Authentic spicy mutton dum biryani',
     'Pure Veg Babai Sponge Dosa under 220',
     'Late night chocolate dessert craving under 350',
