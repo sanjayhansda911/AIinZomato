@@ -7,6 +7,15 @@ import { GoogleGenAI } from '@google/genai';
 import { LOCALITIES, RESTAURANTS, COUPONS } from './src/data/hyderabadData';
 import { Order, CartItem, AIParsedQuery, AIMatchedDish, AISearchResponse } from './src/types';
 
+// Auto-load .env in Node 20.12+ if present
+if (typeof (process as any).loadEnvFile === 'function') {
+  try {
+    (process as any).loadEnvFile();
+  } catch {
+    // Environment variables might be injected by host (e.g. Vercel)
+  }
+}
+
 const app = express();
 const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 3000;
@@ -464,22 +473,65 @@ Extract the following:
 
 User Query: "${query}"`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
+      let responseText: string | null = null;
 
-      if (response.text) {
-        aiParsed = JSON.parse(response.text);
-        source = 'gemini-3.8-flash';
+      // Try gemini-3.8-flash first as requested, fallback to gemini-3.6-flash if high demand
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        if (response.text) {
+          responseText = response.text;
+          source = 'gemini-3.8-flash';
+        }
+      } catch (err38) {
+        console.warn('gemini-3.8-flash busy, falling back to gemini-3.6-flash:', err38);
+        try {
+          const response = await ai.models.generateContent({
+            model: 'gemini-3.6-flash',
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+            },
+          });
+          if (response.text) {
+            responseText = response.text;
+            source = 'gemini-3.8-flash';
+          }
+        } catch (err36) {
+          console.warn('Gemini 3.6 Flash also failed, falling back to local NLP parser:', err36);
+        }
+      }
+
+      if (responseText) {
+        try {
+          const parsed = JSON.parse(responseText);
+          const rawDietary = Array.isArray(parsed.dietary) ? parsed.dietary.join(' ').toLowerCase() : String(parsed.dietary || '').toLowerCase();
+          const dietary: 'veg' | 'non-veg' | null = rawDietary.includes('non') ? 'non-veg' : rawDietary.includes('veg') ? 'veg' : null;
+
+          aiParsed = {
+            intent: parsed.intent || query,
+            maxPrice: typeof parsed.maxPrice === 'number' ? parsed.maxPrice : null,
+            cuisines: Array.isArray(parsed.cuisines) ? parsed.cuisines : [],
+            dishKeywords: Array.isArray(parsed.dishKeywords) ? parsed.dishKeywords : [],
+            dietary,
+            moodOrContext: parsed.moodOrContext || 'Delicious Hyderabadi cuisine',
+            aiExplanation: parsed.aiExplanation || 'Curated dishes based on your AI request',
+            suggestedTags: Array.isArray(parsed.suggestedTags) ? parsed.suggestedTags : [],
+          };
+        } catch (jsonErr) {
+          console.warn('Failed to parse Gemini JSON, using local parser:', jsonErr);
+          aiParsed = localNlpParse(query);
+        }
       } else {
         aiParsed = localNlpParse(query);
       }
     } catch (err) {
-      console.warn('Gemini 3.8 Flash call failed, falling back to local NLP parser:', err);
+      console.warn('Gemini call failed, falling back to local NLP parser:', err);
       aiParsed = localNlpParse(query);
     }
   } else {
