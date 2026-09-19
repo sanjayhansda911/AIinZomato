@@ -353,7 +353,35 @@ function localNlpParse(query: string): AIParsedQuery {
   const dishKeywords: string[] = [];
   const suggestedTags: string[] = [];
 
-  if (q.includes('chai') || q.includes('tea') || q.includes('bun maska') || q.includes('irani') || q.includes('osmania') || q.includes('biscuit') || q.includes('samosa') || q.includes('tie biscuit')) {
+  // BIRYANI DETECTION (Handles Indian phonetic variants: biryani, biriyani, biriyan, briyani, biriani, dum biryani)
+  const isBiryani = /biry?a[nm]i?|briyani|pulao/i.test(q);
+  if (isBiryani) {
+    cuisines.push('Biryani', 'Mughlai');
+    if (q.includes('mutton') || q.includes('gosht') || q.includes('lamb')) {
+      dishKeywords.push('mutton biryani');
+      suggestedTags.push('Mutton Biryani');
+    }
+    if (q.includes('chicken') || q.includes('murgh')) {
+      dishKeywords.push('chicken biryani', 'chicken');
+      suggestedTags.push('Chicken Biryani');
+    }
+    if (q.includes('egg')) {
+      dishKeywords.push('egg biryani');
+      suggestedTags.push('Egg Biryani');
+    }
+    if (q.includes('veg') && !q.includes('non')) {
+      dishKeywords.push('veg biryani');
+      suggestedTags.push('Veg Biryani');
+    }
+    if (q.includes('65')) {
+      dishKeywords.push('chicken 65 biryani');
+    }
+    dishKeywords.push('biryani');
+    suggestedTags.push('Dum Biryani', 'Hyderabadi Special');
+  }
+
+  // CHAI & BAKERY (Only check if user did NOT ask for biryani)
+  if (!isBiryani && (q.includes('chai') || q.includes('tea') || q.includes('bun maska') || q.includes('irani') || q.includes('osmania') || q.includes('biscuit') || q.includes('samosa') || q.includes('tie biscuit'))) {
     cuisines.push('Irani Chai', 'Bakery');
     if (q.includes('chai') || q.includes('tea') || q.includes('irani')) dishKeywords.push('irani chai', 'chai');
     if (q.includes('osmania')) dishKeywords.push('osmania biscuits');
@@ -361,15 +389,6 @@ function localNlpParse(query: string): AIParsedQuery {
     if (q.includes('samosa') || q.includes('keema')) dishKeywords.push('keema samosas');
     if (q.includes('tie')) dishKeywords.push('tie biscuits');
     suggestedTags.push('Chai Time', 'Hyderabad Heritage');
-  }
-
-  if (q.includes('biryani') || q.includes('dum biryani') || q.includes('pulao') || q.includes('65')) {
-    cuisines.push('Biryani', 'Mughlai');
-    if (q.includes('mutton')) dishKeywords.push('mutton biryani');
-    if (q.includes('chicken')) dishKeywords.push('chicken biryani');
-    if (q.includes('65')) dishKeywords.push('chicken 65');
-    if (!dishKeywords.some(k => k.includes('biryani'))) dishKeywords.push('biryani');
-    suggestedTags.push('Dum Biryani', 'Hyderabadi Special');
   }
 
   if (q.includes('dosa') || q.includes('idli') || q.includes('pesarattu') || q.includes('south indian') || q.includes('babai') || q.includes('chutney')) {
@@ -460,16 +479,18 @@ apiRouter.post('/ai/search', async (req, res) => {
       const prompt = `You are an expert food & cuisine AI assistant for Zomato in Hyderabad, India.
 Analyze the user's natural language food query and extract parameters in JSON format.
 The user might ask in English or Indian English (e.g. "Want something light under 250 rupees", "Hot Irani chai with Osmania biscuits under 120", "authentic spicy mutton dum biryani for dinner").
+Handle phonetic variations and typos common in India (e.g. "biriyan", "biriyani", "briyani" -> "biryani"; "rooti" -> "roti"; "kabab" -> "kebab").
 
 Extract the following:
 - "intent": string summary
 - "maxPrice": number or null (e.g. 250)
-- "cuisines": array of matched cuisines
-- "dishKeywords": array of food items
+- "cuisines": array of matched cuisines (e.g. ["Biryani", "Hyderabadi"])
+- "dishKeywords": array of food items (e.g. ["chicken biryani", "biryani"]). If user specifically asked for Biryani, ONLY biryani keywords must be specified! Never add unrelated appetizers like samosas or curries.
+- "coreFoodType": string or null (e.g. "biryani", "chai", "dosa", "haleem", "samosa", "kebab", "pizza")
 - "dietary": "veg" | "non-veg" | null
 - "moodOrContext": string
 - "aiExplanation": clear explanation sentence
-- "suggestedTags": badges like ["Under ₹250", "Light Bites"]
+- "suggestedTags": badges like ["Under ₹250", "Chicken Biryani"]
 
 User Query: "${query}"`;
 
@@ -544,41 +565,79 @@ User Query: "${query}"`;
   // Match and rank dishes from RESTAURANTS across Hyderabad
   const matchedDishes: AIMatchedDish[] = [];
 
+  const rawQueryLower = (query || '').toLowerCase();
+  const isBiryaniRequested = /biry?a[nm]i?|briyani/i.test(rawQueryLower) || 
+    (aiParsed.dishKeywords && aiParsed.dishKeywords.some(k => /biry?a[nm]i?|briyani/i.test(k)));
+  const isChickenRequested = rawQueryLower.includes('chicken') || rawQueryLower.includes('murgh') ||
+    (aiParsed.dishKeywords && aiParsed.dishKeywords.some(k => k.includes('chicken') || k.includes('murgh')));
+  const isMuttonRequested = rawQueryLower.includes('mutton') || rawQueryLower.includes('gosht') || rawQueryLower.includes('lamb') ||
+    (aiParsed.dishKeywords && aiParsed.dishKeywords.some(k => k.includes('mutton') || k.includes('gosht')));
+
   for (const rest of RESTAURANTS) {
     // Distance & ETA for this restaurant relative to target locality
     const adjustedRest = getAdjustedRestaurant(rest, localityId);
 
     for (const cat of rest.menuCategories) {
       for (const item of cat.items) {
-        // Filter by maxPrice
-        if (aiParsed.maxPrice !== null && item.price > aiParsed.maxPrice) {
-          continue;
-        }
-
-        // Filter by dietary preference
-        if (aiParsed.dietary === 'veg' && !item.isVeg) {
-          continue;
-        }
-        if (aiParsed.dietary === 'non-veg' && item.isVeg && aiParsed.dishKeywords.some(k => ['chicken', 'mutton', 'meat', 'keema', 'boti', 'haleem'].some(m => k.includes(m)))) {
-          continue;
-        }
-
-        // Calculate relevance match score
-        let matchScore = 0;
-        const matchTags: string[] = [];
         const itemName = item.name.toLowerCase();
         const itemDesc = item.description.toLowerCase();
         const catName = cat.name.toLowerCase();
 
-        // Check dish keyword matches
+        // 1. Filter by maxPrice
+        if (aiParsed.maxPrice !== null && item.price > aiParsed.maxPrice) {
+          continue;
+        }
+
+        // 2. Filter by dietary preference
+        if (aiParsed.dietary === 'veg' && !item.isVeg) {
+          continue;
+        }
+        if (aiParsed.dietary === 'non-veg' && item.isVeg && isChickenRequested) {
+          // If chicken requested, skip veg dishes
+          continue;
+        }
+
+        // 3. STRICT FOOD CATEGORY FILTER:
+        // When Biryani is requested, NEVER allow Samosas, curries, tarts, biscuits, or tea to leak into results!
+        const isDishBiryani = /biry?a[nm]i?|briyani|pulao/i.test(itemName) || /biry?a[nm]i?|briyani/i.test(catName);
+        if (isBiryaniRequested && !isDishBiryani) {
+          continue;
+        }
+
+        // 4. PROTEIN CONFLICT FILTER:
+        const isDishChicken = itemName.includes('chicken') || itemName.includes('murgh') || itemDesc.includes('chicken');
+        const isDishMutton = itemName.includes('mutton') || itemName.includes('gosht') || itemName.includes('lamb');
+
+        if (isChickenRequested && isDishMutton && !isDishChicken) {
+          // User asked for chicken, do not give mutton!
+          continue;
+        }
+        if (isMuttonRequested && isDishChicken && !isDishMutton) {
+          // User asked for mutton, do not give chicken!
+          continue;
+        }
+
+        // 5. Keyword Matching Score
+        let matchScore = 0;
+        const matchTags: string[] = [];
         let keywordHit = false;
+
         if (aiParsed.dishKeywords && aiParsed.dishKeywords.length > 0) {
           for (const kw of aiParsed.dishKeywords) {
             const kwLower = kw.toLowerCase();
+            const kwWords = kwLower.split(/\s+/).filter(w => w.length > 2);
+
             if (itemName.includes(kwLower)) {
-              matchScore += 25;
+              matchScore += 35;
               keywordHit = true;
               matchTags.push('Direct Match');
+            } else if (kwWords.length > 1 && kwWords.every(w => itemName.includes(w) || itemDesc.includes(w))) {
+              matchScore += 30;
+              keywordHit = true;
+              matchTags.push('Direct Match');
+            } else if (kwWords.some(w => itemName.includes(w))) {
+              matchScore += 15;
+              keywordHit = true;
             } else if (itemDesc.includes(kwLower) || catName.includes(kwLower)) {
               matchScore += 12;
               keywordHit = true;
@@ -586,24 +645,35 @@ User Query: "${query}"`;
           }
         }
 
-        // Check cuisine matches
+        // Bonus for Chicken match
+        if (isChickenRequested && isDishChicken) {
+          matchScore += 25;
+          if (!matchTags.includes('Chicken Special')) matchTags.push('Chicken Special');
+        }
+        // Bonus for Biryani match
+        if (isBiryaniRequested && isDishBiryani) {
+          matchScore += 25;
+          if (!matchTags.includes('Dum Biryani')) matchTags.push('Dum Biryani');
+        }
+
+        // Cuisine match bonus
         if (aiParsed.cuisines && aiParsed.cuisines.length > 0) {
           for (const c of aiParsed.cuisines) {
             if (rest.cuisines.some(rc => rc.toLowerCase().includes(c.toLowerCase()))) {
-              matchScore += 10;
-              if (!matchTags.includes(c)) matchTags.push(c);
+              matchScore += 8;
+              break;
             }
           }
         }
 
-        // If user didn't mention specific dishes but mentioned budget/light, include dishes under budget
-        if (!keywordHit && aiParsed.dishKeywords.length === 0 && aiParsed.maxPrice) {
-          matchScore += 15;
+        // If user specified dish keywords, dish MUST have a keyword hit!
+        if (aiParsed.dishKeywords && aiParsed.dishKeywords.length > 0 && !keywordHit) {
+          continue;
         }
 
-        // If no match at all and user had specific keywords, skip
-        if (aiParsed.dishKeywords.length > 0 && !keywordHit && matchScore < 10) {
-          continue;
+        // If user didn't mention specific dishes but mentioned budget/light, include dishes under budget
+        if (!keywordHit && (!aiParsed.dishKeywords || aiParsed.dishKeywords.length === 0) && aiParsed.maxPrice) {
+          matchScore += 15;
         }
 
         // Bonus for bestsellers & high ratings

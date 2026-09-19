@@ -159,6 +159,18 @@ export const RESTAURANTS: Restaurant[] = [
             imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=80',
           },
           {
+            id: 'paradise-single-chicken-biryani',
+            name: 'Single Pack Chicken Dum Biryani',
+            description: 'Authentic Hyderabadi chicken dum biryani portioned for one, with a tender chicken piece slow-cooked with saffron basmati rice. Served with Mirchi Ka Salan and Raita.',
+            price: 235,
+            isVeg: false,
+            isBestseller: true,
+            category: 'Legendary Biryanis',
+            rating: 4.8,
+            votes: 21500,
+            imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
+          },
+          {
             id: 'paradise-special-egg-biryani',
             name: 'Special Egg Dum Biryani',
             description: 'Aromatic long-grain basmati dum rice layered with golden spiced boiled eggs, caramelized onions, fresh mint, and pure desi ghee. Served with Mirchi Ka Salan.',
@@ -306,6 +318,18 @@ export const RESTAURANTS: Restaurant[] = [
             rating: 4.8,
             votes: 41200,
             imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=80',
+          },
+          {
+            id: 'bawarchi-single-chicken-biryani',
+            name: 'Bawarchi Single Chicken Biryani',
+            description: 'The cult classic Bawarchi chicken biryani in an individual single portion. Tender spiced chicken piece with aromatic long-grain rice, served with salan and raita.',
+            price: 225,
+            isVeg: false,
+            isBestseller: true,
+            category: 'Cult Classic Biryanis',
+            rating: 4.8,
+            votes: 27400,
+            imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop&q=80',
           },
           {
             id: 'bawarchi-special-egg-biryani',
@@ -905,6 +929,19 @@ export const RESTAURANTS: Restaurant[] = [
       {
         name: 'Midnight Biryani & Starters',
         items: [
+          {
+            id: 'shah-ghouse-mini-chicken-biryani',
+            name: 'Mini Chicken Dum Biryani',
+            description: 'Spicy, rustic Tolichowki style chicken dum biryani sized for solo dining with succulent marinated chicken, rich masala rice and spicy salan.',
+            price: 220,
+            isVeg: false,
+            isBestseller: true,
+            isSpicy: true,
+            category: 'Midnight Biryani & Starters',
+            rating: 4.8,
+            votes: 23100,
+            imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop&q=80',
+          },
           {
             id: 'shah-ghouse-chicken-65-biryani',
             name: 'Chicken 65 Biryani',
