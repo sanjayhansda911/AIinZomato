@@ -49,9 +49,10 @@ function getAdjustedRestaurant(restaurant: any, targetLocalityId?: string) {
 }
 
 // ================= API ROUTES =================
+const apiRouter = express.Router();
 
 // 1. Localities endpoint
-app.get('/api/localities', (req, res) => {
+apiRouter.get('/localities', (req, res) => {
   res.json({
     success: true,
     data: LOCALITIES,
@@ -60,7 +61,7 @@ app.get('/api/localities', (req, res) => {
 });
 
 // 2. Restaurants list with comprehensive filtering
-app.get('/api/restaurants', (req, res) => {
+apiRouter.get('/restaurants', (req, res) => {
   const { tab = 'delivery', locality, search, vegOnly, minRating, cuisine } = req.query;
 
   let list = RESTAURANTS.filter(r => {
@@ -109,7 +110,7 @@ app.get('/api/restaurants', (req, res) => {
 });
 
 // 3. Single restaurant by ID
-app.get('/api/restaurants/:id', (req, res) => {
+apiRouter.get('/restaurants/:id', (req, res) => {
   const { id } = req.params;
   const { locality } = req.query;
   const restaurant = RESTAURANTS.find(r => r.id === id);
@@ -126,7 +127,7 @@ app.get('/api/restaurants/:id', (req, res) => {
 });
 
 // 4. Coupons endpoint
-app.get('/api/coupons', (req, res) => {
+apiRouter.get('/coupons', (req, res) => {
   res.json({
     success: true,
     data: COUPONS,
@@ -134,7 +135,7 @@ app.get('/api/coupons', (req, res) => {
 });
 
 // 5. Cart endpoints
-app.get('/api/cart', (req, res) => {
+apiRouter.get('/cart', (req, res) => {
   const currentLocality = LOCALITIES.find(l => l.id === currentCart.localityId) || LOCALITIES[0];
   const subtotal = currentCart.items.reduce((sum, ci) => sum + ci.item.price * ci.quantity, 0);
 
@@ -168,7 +169,7 @@ app.get('/api/cart', (req, res) => {
   });
 });
 
-app.post('/api/cart/update', (req, res) => {
+apiRouter.post('/cart/update', (req, res) => {
   const { items, localityId, appliedCoupon } = req.body;
   if (Array.isArray(items)) {
     currentCart.items = items;
@@ -214,7 +215,7 @@ app.post('/api/cart/update', (req, res) => {
 });
 
 // 6. Orders endpoints (creation & live simulated tracking)
-app.post('/api/orders', (req, res) => {
+apiRouter.post('/orders', (req, res) => {
   const { items, localityId, addressNote, appliedCoupon } = req.body;
   const targetLocality = LOCALITIES.find(l => l.id === localityId) || LOCALITIES[0];
   const orderItems: CartItem[] = items || currentCart.items;
@@ -282,7 +283,7 @@ app.post('/api/orders', (req, res) => {
   });
 });
 
-app.get('/api/orders/:id', (req, res) => {
+apiRouter.get('/orders/:id', (req, res) => {
   const { id } = req.params;
   const order = ordersDatabase.get(id);
 
@@ -431,8 +432,8 @@ function localNlpParse(query: string): AIParsedQuery {
   };
 }
 
-// POST /api/ai/search endpoint
-app.post('/api/ai/search', async (req, res) => {
+// POST /ai/search endpoint
+apiRouter.post('/ai/search', async (req, res) => {
   const { query, localityId = 'jubilee-hills' } = req.body;
 
   if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -600,6 +601,33 @@ User Query: "${query}"`;
   res.json(responseData);
 });
 
+// Health check endpoint
+apiRouter.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'ok',
+    service: 'Zomato Hyderabad API',
+    timestamp: new Date().toISOString(),
+    isVercel: !!process.env.VERCEL,
+  });
+});
+
+// Mount apiRouter on /api
+app.use('/api', apiRouter);
+
+// Also route requests matching known API routes directly if stripped by serverless rewrites
+app.use((req, res, next) => {
+  const apiPaths = ['/localities', '/restaurants', '/coupons', '/cart', '/orders', '/ai', '/health'];
+  if (apiPaths.some(p => req.path.startsWith(p))) {
+    return apiRouter(req, res, next);
+  }
+  next();
+});
+
+// Export app and server for Vercel serverless functions and testing
+export { app, server, apiRouter };
+export default app;
+
 // ================= FRONTEND / VITE INTEGRATION =================
 
 async function startServer() {
@@ -618,10 +646,10 @@ async function startServer() {
   } else {
     // Production mode: Serve pre-built static client files
     console.log('[Prod] Serving production static files...');
-    const clientDist = fs.existsSync(path.resolve(rootDir, 'dist', 'client'))
+    const clientDist = fs.existsSync(path.resolve(rootDir, 'dist', 'index.html'))
+      ? path.resolve(rootDir, 'dist')
+      : fs.existsSync(path.resolve(rootDir, 'dist', 'client', 'index.html'))
       ? path.resolve(rootDir, 'dist', 'client')
-      : fs.existsSync(path.resolve(rootDir, 'client'))
-      ? path.resolve(rootDir, 'client')
       : path.resolve(rootDir, 'dist');
 
     app.use(express.static(clientDist));
@@ -648,7 +676,10 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+// Only start standalone HTTP server if not in Vercel serverless environment
+if (!process.env.VERCEL) {
+  startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}

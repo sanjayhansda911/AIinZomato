@@ -40,10 +40,10 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // IP address for local network mobile testing
-  const mobileUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? `${window.location.protocol}//${window.location.host}`
-    : 'http://192.168.0.112:3000';
+  // Dynamic URL for mobile QR code and sharing (works on localhost, LAN, and Vercel)
+  const mobileUrl = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://ai-in-zomato.vercel.app';
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(mobileUrl);
@@ -73,7 +73,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
               Zomato <span className="text-xs px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-semibold border border-rose-500/30">Hyderabad 🇮🇳</span>
             </h1>
             <p className="text-[11px] text-zinc-400 hidden sm:block">
-              Express + React 18 + Tailwind Mobile App
+              Express + React 18 + Tailwind Mobile Web App
             </p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="text-xs text-zinc-400 bg-zinc-900/90 border border-zinc-800 rounded-full px-3 py-1 hidden md:flex items-center gap-1.5 font-mono">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Port 3000 Active
+            Mobile Web App • Vercel Ready
           </div>
 
           {/* Open on Phone QR Code Button (High-Visibility Emerald Pill) */}
@@ -102,12 +102,12 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
             {isFullScreen ? (
               <>
                 <Smartphone className="w-3.5 h-3.5" />
-                <span>Switch to Phone Frame</span>
+                <span>Show Phone Frame</span>
               </>
             ) : (
               <>
                 <Monitor className="w-3.5 h-3.5" />
-                <span>Full Screen View</span>
+                <span>Mobile Web View</span>
               </>
             )}
           </button>

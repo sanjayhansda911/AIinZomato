@@ -14,9 +14,11 @@ import { CartConflictModal } from './components/CartConflictModal';
 import { InstallAppBanner } from './components/InstallAppBanner';
 import { LOCALITIES, RESTAURANTS, COUPONS } from './data/hyderabadData';
 import { Locality, Restaurant, MenuItem, CartItem, Coupon, Order, AISearchResponse } from './types';
+import { getAdjustedRestaurantClient, clientNlpSearch, createClientOrder } from './utils/localApiFallback';
 
 export const App: React.FC = () => {
-  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  // Mobile-first web app view defaulted to true
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(true);
   const [localities, setLocalities] = useState<Locality[]>(LOCALITIES);
   // Default Location is explicitly Jubilee Hills, Road No. 36, Hyderabad as required
   const [selectedLocality, setSelectedLocality] = useState<Locality>(
@@ -85,6 +87,38 @@ export const App: React.FC = () => {
     if (selectedCuisine) params.append('cuisine', selectedCuisine);
     if (activeFilter === 'rating') params.append('minRating', '4.5');
 
+    const applyLocalFallback = () => {
+      let list = RESTAURANTS.map(r => getAdjustedRestaurantClient(r, selectedLocality.id));
+      if (activeTab !== 'cart') {
+        list = list.filter(r => r.tabTypes.includes(activeTab));
+      }
+      if (isVegOnly) {
+        list = list.filter(r => r.isPureVeg);
+      }
+      if (selectedCuisine) {
+        list = list.filter(r => r.cuisines.some(c => c.toLowerCase() === selectedCuisine.toLowerCase()));
+      }
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        list = list.filter(r =>
+          r.name.toLowerCase().includes(q) ||
+          r.cuisines.some(c => c.toLowerCase().includes(q)) ||
+          r.localityName.toLowerCase().includes(q) ||
+          r.menuCategories.some(mc => mc.items.some(it => it.name.toLowerCase().includes(q)))
+        );
+      }
+      if (activeFilter === 'fast') {
+        list = list.filter(r => r.deliveryTimeMinutes <= 28);
+      } else if (activeFilter === 'offers') {
+        list = list.filter(r => !!r.discountOffer || !!r.diningOffer || !!r.nightlifeOffer);
+      } else if (activeFilter === 'gold') {
+        list = list.filter(r => r.isGoldPartner);
+      } else if (activeFilter === 'rating') {
+        list = list.filter(r => r.rating >= 4.5);
+      }
+      setRestaurants(list);
+    };
+
     fetch(`/api/restaurants?${params.toString()}`)
       .then(res => res.json())
       .then(json => {
@@ -99,12 +133,12 @@ export const App: React.FC = () => {
           }
           setRestaurants(list);
         } else {
-          setRestaurants(RESTAURANTS);
+          applyLocalFallback();
         }
       })
       .catch(err => {
         console.warn('API error, falling back to local dataset:', err);
-        setRestaurants(RESTAURANTS);
+        applyLocalFallback();
       })
       .finally(() => {
         setLoadingRestaurants(false);
@@ -203,24 +237,38 @@ export const App: React.FC = () => {
   };
 
   const handlePlaceOrder = async (notes: string) => {
-    const res = await fetch('/api/orders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: cartItems,
-        localityId: selectedLocality.id,
-        addressNote: notes,
-        appliedCoupon,
-      }),
-    });
-    const json = await res.json();
-    if (json.success && json.data) {
-      setActiveOrder(json.data);
-      setCartItems([]);
-      setActiveTab('delivery');
-    } else {
-      alert(json.message || 'Failed to place order');
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cartItems,
+          localityId: selectedLocality.id,
+          addressNote: notes,
+          appliedCoupon,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setActiveOrder(json.data);
+        setCartItems([]);
+        setActiveTab('delivery');
+        return;
+      }
+    } catch (err) {
+      console.warn('Orders API offline, using client fallback order generator:', err);
     }
+
+    // Client fallback order generation for static or offline mode
+    const fallbackOrder = createClientOrder({
+      items: cartItems,
+      localityId: selectedLocality.id,
+      addressNote: notes,
+      appliedCoupon,
+    });
+    setActiveOrder(fallbackOrder);
+    setCartItems([]);
+    setActiveTab('delivery');
   };
 
   const handlePerformAISearch = async (queryText: string) => {
@@ -238,14 +286,19 @@ export const App: React.FC = () => {
         }),
       });
       const json: AISearchResponse = await res.json();
-      if (json.success) {
+      if (json.success && json.matchedDishes) {
         setAiSearchResult(json);
+        return;
       }
     } catch (err) {
-      console.error('AI search request failed:', err);
+      console.warn('AI search API error, falling back to local Hyderabadi NLP parser:', err);
     } finally {
       setIsAiSearching(false);
     }
+
+    // Client-side NLP fallback
+    const clientResult = clientNlpSearch(queryText, selectedLocality.id);
+    setAiSearchResult(clientResult);
   };
 
   const handleAddDishFromAI = (dish: MenuItem, restaurantId: string, restaurantName: string) => {
